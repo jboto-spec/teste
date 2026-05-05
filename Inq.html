@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Fada Oriana - Quiz Interativo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            min-height: 100vh;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        .quiz-header {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            padding: 2rem;
+            color: white;
+            text-align: center;
+        }
+
+        .option-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .option-card:not(.answered):hover {
+            transform: translateY(-2px);
+            border-color: #22c55e;
+            background-color: #f0fdf4;
+        }
+
+        .correct { background-color: #dcfce7 !important; border-color: #22c55e !important; color: #166534 !important; }
+        .incorrect { background-color: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b !important; }
+        
+        .progress-bar {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .matching-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1.5em 1.5em;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex items-center justify-center">
+
+    <div id="app" class="w-full max-w-3xl glass-card relative">
+        <!-- Cabeçalho -->
+        <div class="quiz-header">
+            <div class="mb-2">
+                <i class="fas fa-leaf fa-3x"></i>
+            </div>
+            <h1 class="text-3xl font-bold">A Fada Oriana</h1>
+            <p class="opacity-90">Quiz de Conhecimento Literário</p>
+        </div>
+
+        <div class="p-6 md:p-10">
+            <!-- Ecrã Inicial -->
+            <div id="start-screen" class="text-center py-8">
+                <p class="text-gray-600 mb-8 text-lg">Testa os teus conhecimentos sobre a obra de Sophia de Mello Breyner Andresen com questões de vários formatos.</p>
+                <button onclick="quizManager.start()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-12 rounded-full transition-transform active:scale-95 shadow-lg flex items-center justify-center mx-auto space-x-2">
+                    <span>Começar o Desafio</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- Ecrã do Quiz -->
+            <div id="quiz-screen" class="hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <span id="question-counter" class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Questão 1 de 30</span>
+                    <span id="score-badge" class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Pontos: 0</span>
+                </div>
+                
+                <div class="w-full bg-gray-100 h-2 rounded-full mb-8 overflow-hidden">
+                    <div id="progress-bar" class="progress-bar h-full bg-green-500" style="width: 0%"></div>
+                </div>
+
+                <div id="question-container" class="mb-8">
+                    <h2 id="question-text" class="text-xl font-bold text-gray-800 mb-6 leading-tight"></h2>
+                    <div id="options-grid" class="space-y-3">
+                        <!-- Conteúdo dinâmico -->
+                    </div>
+                </div>
+
+                <div id="feedback-area" class="hidden mt-6 p-4 rounded-xl text-sm mb-6 border font-medium"></div>
+
+                <div class="flex justify-end">
+                    <button id="next-btn" onclick="quizManager.handleAction()" class="bg-gray-800 text-white px-8 py-3 rounded-lg font-semibold hover:bg-black transition-colors shadow-md">
+                        Validar Resposta
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ecrã de Resultados -->
+            <div id="result-screen" class="hidden text-center py-8">
+                <h2 class="text-3xl font-bold mb-4 text-gray-800">Quiz Terminado!</h2>
+                <div class="text-7xl font-bold text-green-600 mb-4" id="final-score">0/30</div>
+                <p id="result-message" class="text-gray-600 mb-10 text-lg"></p>
+                <button onclick="location.reload()" class="bg-green-600 text-white px-10 py-4 rounded-full font-bold hover:bg-green-700 transition-all shadow-lg">
+                    <i class="fas fa-redo mr-2"></i> Tentar Novamente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rawData = {
+            "questions": [
+                { "number": 1, "question": "As fadas boas e as fadas más distinguem-se principalmente pelas suas ações?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 2, "question": "O que Oriana prometeu à Rainha das Fadas?", "options": [{ "text": "Nunca abandonar os seus protegidos.", "isCorrect": true }, { "text": "Ser a fada mais bonita de todas.", "isCorrect": false }, { "text": "Casar com um príncipe humano.", "isCorrect": false }, { "text": "Viver para sempre na cidade.", "isCorrect": false }] },
+                { "number": 3, "question": "Quem é o primeiro animal que Oriana esquece de ajudar?", "options": [{ "text": "O coelho.", "isCorrect": true }, { "text": "O peixe.", "isCorrect": false }, { "text": "O esquilo.", "isCorrect": false }, { "text": "O pássaro.", "isCorrect": false }] },
+                { "number": 4, "question": "O que faz Oriana distrair-se dos seus deveres pela primeira vez?", "options": [{ "text": "O seu reflexo no rio.", "isCorrect": true }, { "text": "Um baile na cidade.", "isCorrect": false }, { "text": "O pedido de ajuda de um gigante.", "isCorrect": false }, { "text": "Uma tempestade de neve.", "isCorrect": false }] },
+                { "number": 5, "question": "A Rainha das Fadas perdoou Oriana imediatamente?", "options": [{ "text": "Verdadeiro", "isCorrect": false }, { "text": "Falso", "isCorrect": true }] },
+                { "number": 6, "question": "Como se sente Oriana quando perde as suas asas?", "options": [{ "text": "Desesperada e pesada.", "isCorrect": true }, { "text": "Livre das suas responsabilidades.", "isCorrect": false }, { "text": "Curiosa por viver como humana.", "isCorrect": false }, { "text": "Orgulhosa da sua nova aparência.", "isCorrect": false }] },
+                { "number": 7, "question": "O que acontece à casa do Velho quando Oriana o abandona?", "options": [{ "text": "Fica suja e cheia de teias de aranha.", "isCorrect": true }, { "text": "É destruída por um incêndio.", "isCorrect": false }, { "text": "Torna-se um palácio.", "isCorrect": false }, { "text": "É ocupada por ladrões.", "isCorrect": false }] },
+                { "number": 8, "question": "Quem ajuda Oriana a perceber o mal que causou?", "options": [{ "text": "O Peixe.", "isCorrect": true }, { "text": "O Homem Rico.", "isCorrect": false }, { "text": "A Rainha das Fadas.", "isCorrect": false }, { "text": "As fadas más.", "isCorrect": false }] },
+                { "number": 9, "question": "Oriana procurou os seus protegidos na Cidade?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 10, "question": "Como é descrita a cidade no livro?", "options": [{ "text": "Um lugar barulhento e confuso.", "isCorrect": true }, { "text": "Um paraíso de luz e alegria.", "isCorrect": false }, { "text": "Uma aldeia pequena e pacífica.", "isCorrect": false }, { "text": "Um castelo flutuante.", "isCorrect": false }] },
+                { "number": 11, "question": "A autora do livro é Sophia de Mello Breyner Andresen?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 12, "question": "Onde vivia a fada?", "options": [{ "text": "Na Floresta", "isCorrect": true }, { "text": "No Mar", "isCorrect": false }] },
+                { "number": 13, "question": "O que Oriana usava para fazer magia?", "options": [{ "text": "Varinha de Condão", "isCorrect": true }, { "text": "Chapéu", "isCorrect": false }] },
+                { "number": 14, "question": "Quem era o seu melhor amigo animal?", "options": [{ "text": "O Coelho", "isCorrect": true }, { "text": "O Gato", "isCorrect": false }] },
+                { "number": 15, "question": "As asas de Oriana eram pretas?", "options": [{ "text": "Verdadeiro", "isCorrect": false }, { "text": "Falso", "isCorrect": true }] },
+                { "number": 16, "question": "O que Oriana esqueceu por causa da vaidade?", "options": [{ "text": "O seu dever", "isCorrect": true }, { "text": "A sua comida", "isCorrect": false }] },
+                { "number": 17, "question": "A fada má gostava de regar flores?", "options": [{ "text": "Verdadeiro", "isCorrect": false }, { "text": "Falso", "isCorrect": true }] },
+                { "number": 18, "question": "Quem cuidava das flores?", "options": [{ "text": "As fadas", "isCorrect": true }, { "text": "Os gigantes", "isCorrect": false }] },
+                { "number": 19, "question": "Qual o animal que vivia no rio?", "options": [{ "text": "O Peixe", "isCorrect": true }, { "text": "O Lobo", "isCorrect": false }] },
+                { "number": 20, "question": "A Rainha das Fadas era injusta?", "options": [{ "text": "Verdadeiro", "isCorrect": false }, { "text": "Falso", "isCorrect": true }] },
+                { "number": 21, "question": "Oriana recuperou as asas no final?", "options": [{ "text": "Sim", "isCorrect": true }, { "text": "Não", "isCorrect": false }] },
+                { "number": 22, "question": "O que ela salvou no abismo?", "options": [{ "text": "O filho do lenhador", "isCorrect": true }, { "text": "Um baú de oiro", "isCorrect": false }] },
+                { "number": 23, "question": "A cidade era um lugar de humanos?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 24, "question": "O que aconteceu à família do lenhador?", "options": [{ "text": "Ficou pobre", "isCorrect": true }, { "text": "Ficou rica", "isCorrect": false }] },
+                { "number": 25, "question": "O Velho era poeta?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 26, "question": "O Peixe avisou Oriana sobre a sua vaidade?", "options": [{ "text": "Sim", "isCorrect": true }, { "text": "Não", "isCorrect": false }] },
+                { "number": 27, "question": "As fadas más gostavam de secar fontes?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 28, "question": "Onde Oriana se viu pela primeira vez?", "options": [{ "text": "No Rio", "isCorrect": true }, { "text": "Num espelho", "isCorrect": false }] },
+                { "number": 29, "question": "A história é um conto de fadas?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] },
+                { "number": 30, "question": "A responsabilidade é uma lição central do livro?", "options": [{ "text": "Verdadeiro", "isCorrect": true }, { "text": "Falso", "isCorrect": false }] }
+            ]
+        };
+
+        const quizManager = {
+            currentIndex: 0,
+            score: 0,
+            questions: [],
+            isAnswered: false,
+
+            start() {
+                document.getElementById('start-screen').classList.add('hidden');
+                document.getElementById('quiz-screen').classList.remove('hidden');
+                this.questions = this.prepareQuestions(rawData.questions);
+                this.renderQuestion();
+            },
+
+            prepareQuestions(qs) {
+                return qs.map((q, idx) => {
+                    let type = 'multiple';
+                    // Tipos específicos com base no índice
+                    if (q.question.includes('?') && q.options.length === 2 && (q.options[0].text === "Verdadeiro" || q.options[0].text === "Sim")) {
+                        type = 'true-false';
+                    } else if (idx % 7 === 1) {
+                        type = 'short-answer';
+                    } else if (idx % 7 === 3) {
+                        type = 'checkbox';
+                    } else if (idx % 7 === 5) {
+                        type = 'matching';
+                    }
+                    return { ...q, type };
+                });
+            },
+
+            renderQuestion() {
+                this.isAnswered = false;
+                const q = this.questions[this.currentIndex];
+                const container = document.getElementById('options-grid');
+                const nextBtn = document.getElementById('next-btn');
+                
+                document.getElementById('question-text').innerText = q.question;
+                document.getElementById('question-counter').innerText = `Questão ${this.currentIndex + 1} de ${this.questions.length}`;
+                document.getElementById('progress-bar').style.width = `${((this.currentIndex) / this.questions.length) * 100}%`;
+                document.getElementById('feedback-area').classList.add('hidden');
+                
+                nextBtn.innerText = "Validar Resposta";
+                nextBtn.classList.replace('bg-green-600', 'bg-gray-800');
+                
+                // Se for V/F, ocultar o botão de validar (será imediato)
+                if (q.type === 'true-false') {
+                    nextBtn.classList.add('invisible');
+                } else {
+                    nextBtn.classList.remove('invisible');
+                }
+
+                container.innerHTML = '';
+
+                switch(q.type) {
+                    case 'true-false': this.renderTrueFalse(q, container); break;
+                    case 'short-answer': this.renderShortAnswer(q, container); break;
+                    case 'checkbox': this.renderCheckbox(q, container); break;
+                    case 'matching': this.renderMatching(q, container); break;
+                    default: this.renderMultiple(q, container);
+                }
+            },
+
+            renderMultiple(q, container) {
+                q.options.forEach((opt, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'option-card p-4 rounded-xl bg-white border-2 border-gray-100 flex items-center shadow-sm';
+                    div.innerHTML = `
+                        <span class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center mr-3 font-bold text-green-600 border border-green-100">${String.fromCharCode(65 + i)}</span>
+                        <span class="text-gray-700">${opt.text}</span>
+                    `;
+                    div.onclick = () => this.selectOption(div, opt.isCorrect);
+                    container.appendChild(div);
+                });
+            },
+
+            renderTrueFalse(q, container) {
+                q.options.forEach(opt => {
+                    const div = document.createElement('div');
+                    div.className = 'option-card p-4 rounded-xl bg-white border-2 border-gray-100 text-center font-bold text-gray-700';
+                    div.innerText = opt.text;
+                    div.onclick = () => {
+                        if (this.isAnswered) return;
+                        this.validateTrueFalse(div, opt.isCorrect);
+                    };
+                    container.appendChild(div);
+                });
+            },
+
+            renderShortAnswer(q, container) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = 'Escreve aqui...';
+                input.className = 'w-full p-4 rounded-xl border-2 border-gray-200 focus:border-green-500 outline-none transition-all text-gray-700';
+                input.id = 'short-answer-input';
+                container.appendChild(input);
+            },
+
+            renderCheckbox(q, container) {
+                q.options.forEach((opt, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'option-card p-4 rounded-xl bg-white border-2 border-gray-100 flex items-center';
+                    div.innerHTML = `
+                        <input type="checkbox" class="mr-3 w-5 h-5 rounded accent-green-600" data-correct="${opt.isCorrect}">
+                        <span class="text-gray-700">${opt.text}</span>
+                    `;
+                    div.onclick = (e) => {
+                        if (this.isAnswered) return;
+                        if(e.target.tagName !== 'INPUT') {
+                            const ck = div.querySelector('input');
+                            ck.checked = !ck.checked;
+                        }
+                    };
+                    container.appendChild(div);
+                });
+            },
+
+            renderMatching(q, container) {
+                const pairs = [
+                    { key: "Oriana", val: "Fada" },
+                    { key: "Peixe", val: "Rio" },
+                    { key: "Velho", val: "Poeta" }
+                ];
+                
+                const html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            ${pairs.map(p => `<div class="p-3 bg-green-50 border border-green-200 rounded-lg text-sm font-semibold text-green-800">${p.key}</div>`).join('')}
+                        </div>
+                        <div class="space-y-2">
+                            ${[...pairs].sort(() => Math.random() - 0.5).map(p => `
+                                <select class="w-full p-3 border-2 border-gray-100 rounded-lg text-sm matching-select focus:border-green-500 outline-none" data-answer="${p.key}">
+                                    <option value="">Escolher...</option>
+                                    ${pairs.map(pair => `<option value="${pair.key}">${pair.val}</option>`).join('')}
+                                </select>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML = html;
+            },
+
+            selectOption(el, isCorrect) {
+                if (this.isAnswered) return;
+                document.querySelectorAll('.option-card').forEach(card => {
+                    card.classList.remove('border-green-500', 'bg-green-50');
+                });
+                el.classList.add('border-green-500', 'bg-green-50');
+                el.dataset.selected = isCorrect;
+            },
+
+            validateTrueFalse(el, isCorrect) {
+                this.isAnswered = true;
+                if (isCorrect) this.score++;
+                
+                el.classList.add(isCorrect ? 'correct' : 'incorrect');
+                el.classList.add('answered');
+                
+                this.showFeedback(isCorrect ? "Correto!" : "Incorreto!", isCorrect);
+                document.getElementById('score-badge').innerText = `Pontos: ${this.score}`;
+                
+                const nextBtn = document.getElementById('next-btn');
+                nextBtn.innerText = "Próxima Questão";
+                nextBtn.classList.replace('bg-gray-800', 'bg-green-600');
+                nextBtn.classList.remove('invisible');
+            },
+
+            handleAction() {
+                if (this.isAnswered) {
+                    this.nextQuestion();
+                } else {
+                    this.submit();
+                }
+            },
+
+            submit() {
+                const q = this.questions[this.currentIndex];
+                let isCorrect = false;
+
+                if (q.type === 'multiple') {
+                    const selected = document.querySelector('.option-card[data-selected]');
+                    if (!selected) return this.showFeedback("Seleciona uma opção!", false);
+                    isCorrect = selected.dataset.selected === 'true';
+                    selected.classList.add(isCorrect ? 'correct' : 'incorrect');
+                } 
+                else if (q.type === 'short-answer') {
+                    const val = document.getElementById('short-answer-input').value.toLowerCase().trim();
+                    const correctVal = q.options.find(o => o.isCorrect).text.toLowerCase();
+                    isCorrect = val.includes(correctVal) || (val.length > 3 && correctVal.includes(val));
+                    document.getElementById('short-answer-input').classList.add(isCorrect ? 'border-green-500' : 'border-red-500');
+                }
+                else if (q.type === 'checkbox') {
+                    const checks = document.querySelectorAll('input[type="checkbox"]');
+                    isCorrect = Array.from(checks).every(c => (c.checked && c.dataset.correct === 'true') || (!c.checked && c.dataset.correct === 'false'));
+                    checks.forEach(c => c.closest('.option-card').classList.add('answered'));
+                }
+                else if (q.type === 'matching') {
+                    const selects = document.querySelectorAll('.matching-select');
+                    isCorrect = Array.from(selects).every(s => s.value === s.dataset.answer);
+                }
+
+                if (isCorrect) this.score++;
+                
+                this.isAnswered = true;
+                this.showFeedback(isCorrect ? "Resposta correta!" : "Resposta errada!", isCorrect);
+                document.getElementById('score-badge').innerText = `Pontos: ${this.score}`;
+                
+                const nextBtn = document.getElementById('next-btn');
+                nextBtn.innerText = "Próxima Questão";
+                nextBtn.classList.replace('bg-gray-800', 'bg-green-600');
+            },
+
+            showFeedback(msg, isCorrect) {
+                const area = document.getElementById('feedback-area');
+                area.innerText = msg;
+                area.className = `mt-6 p-4 rounded-xl text-sm mb-6 border-2 font-medium ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`;
+                area.classList.remove('hidden');
+            },
+
+            nextQuestion() {
+                this.currentIndex++;
+                if (this.currentIndex < this.questions.length) {
+                    this.renderQuestion();
+                } else {
+                    this.showResults();
+                }
+            },
+
+            showResults() {
+                document.getElementById('quiz-screen').classList.add('hidden');
+                document.getElementById('result-screen').classList.remove('hidden');
+                document.getElementById('final-score').innerText = `${this.score}/${this.questions.length}`;
+                
+                const ratio = this.score / this.questions.length;
+                let msg = ratio >= 0.8 ? "Excelente! Dominas a história." : (ratio >= 0.5 ? "Bom trabalho, mas podes melhorar." : "Tenta ler a história com mais atenção!");
+                
+                document.getElementById('result-message').innerText = msg;
+            }
+        };
+    </script>
+</body>
+</html>
